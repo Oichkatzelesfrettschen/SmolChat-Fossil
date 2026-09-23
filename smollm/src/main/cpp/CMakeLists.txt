@@ -1,6 +1,20 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("smollm")
 
+# armeabi-v7a: one FPU baseline for every translation unit, ggml included.
+# SMOLLM_ARMV7_FPU=neon runs on Cortex-A9 (VFPv3) and Krait (VFPv4);
+# neon-vfpv4 adds VFMA and faults with SIGILL on a Cortex-A9.
+# ggml's OpenMP backend links libomp.so, which neither target ROM ships, so
+# the armv7 build uses ggml's own thread pool.
+if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
+    if (NOT DEFINED SMOLLM_ARMV7_FPU)
+        set(SMOLLM_ARMV7_FPU "neon")
+    endif()
+    add_compile_options(-march=armv7-a -mfpu=${SMOLLM_ARMV7_FPU} -mfloat-abi=softfp)
+    set(GGML_OPENMP OFF CACHE BOOL "ggml: use OpenMP" FORCE)
+    set(GGML_NATIVE OFF CACHE BOOL "ggml: optimize for the build host" FORCE)
+endif()
+
 add_subdirectory(../../../../llama.cpp llama.cpp)
 set(LLAMA_DIR_RELATIVE "../../../../llama.cpp")
 get_filename_component(LLAMA_DIR ${LLAMA_DIR_RELATIVE} ABSOLUTE)
@@ -39,6 +53,7 @@ function(build_library target_name)
             SHARED
             LLMInference.cpp
             smollm.cpp
+            SandboxedInference.cpp
     )
     target_include_directories(
             ${target_name}
@@ -66,7 +81,7 @@ function(build_library target_name)
     )
     target_link_libraries(
             ${target_name}
-            android log llama common vulkan
+            android log llama common
     )
     # -Wl,--gc-sections: remove unused sections (garbage collection)
     # -flto: link-time optimization
@@ -97,15 +112,6 @@ function(build_library_arm64 target_name cpu_flags)
     )
 endfunction()
 
-function(build_library_armv7a target_name cpu_flags fpu fpu_abi)
-    build_library(${target_name})
-    target_compile_options(
-            ${target_name}
-            PUBLIC
-            -DGGML_USE_CPU ${cpu_flags} ${fpu} ${fpu_abi} -O3
-    )
-endfunction()
-
 function(build_library_universal target_name)
     build_library(${target_name})
     target_compile_options(
@@ -116,9 +122,6 @@ function(build_library_universal target_name)
 endfunction()
 
 build_library_universal("smollm")
-if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
-    build_library_armv7a("smollm_v7a" "-march=armv7-a" "-mfpu=neon-vfpv4" "-mfloat-abi=softfp")
-endif()
 if (${ANDROID_ABI} STREQUAL "arm64-v8a")
     build_library_arm64("smollm_v8" "-march=armv8-a")
     # Targets for Arm-v8.2a
