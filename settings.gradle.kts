@@ -33,3 +33,7 @@ rootProject.name = "SmolChat Android"
 include(":app")
 include(":smollm")
 include(":hf-model-hub-api")
+
+// Sandboxed assistant: app, shared Binder interfaces, and the separate
+// network-holding web-search package.
+include(":assistant-ipc")
