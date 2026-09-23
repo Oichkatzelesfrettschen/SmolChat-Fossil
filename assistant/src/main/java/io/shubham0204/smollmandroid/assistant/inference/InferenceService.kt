@@ -11,6 +11,8 @@ import android.os.SystemClock
 import io.shubham0204.smollm.SandboxedLM
 import io.shubham0204.smollmandroid.assistant.ipc.IGenerationCallback
 import io.shubham0204.smollmandroid.assistant.ipc.IInferenceService
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
 /**
@@ -28,7 +30,7 @@ class InferenceService : Service() {
         object : IInferenceService.Stub() {
             override fun load(model: ParcelFileDescriptor, nCtx: Int, nThreads: Int): String {
                 enforceCaller()
-                return worker.submit<String> {
+                return onWorker {
                     model.use { pfd ->
                         lm?.close()
                         lm = null
@@ -39,7 +41,7 @@ class InferenceService : Service() {
                         listOf(info.description, info.nParams, info.sizeBytes, info.nCtx, uid, isIsolatedUid(uid))
                             .joinToString("\n")
                     }
-                }.get()
+                }
             }
 
             override fun generate(
@@ -83,11 +85,21 @@ class InferenceService : Service() {
 
             override fun unload() {
                 enforceCaller()
-                worker.submit {
+                onWorker {
                     lm?.close()
                     lm = null
-                }.get()
+                }
             }
+        }
+
+    // Binder parcels only RuntimeException subtypes back to the caller; unwrap
+    // the worker's ExecutionException so the cause's message reaches the app.
+    private fun <T> onWorker(block: () -> T): T =
+        try {
+            worker.submit(Callable { block() }).get()
+        } catch (e: ExecutionException) {
+            val cause = e.cause ?: e
+            throw IllegalStateException("${cause.javaClass.simpleName}: ${cause.message}")
         }
 
     // The service is not exported, so only this package's UID can bind it;

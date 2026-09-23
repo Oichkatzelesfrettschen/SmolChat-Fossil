@@ -165,8 +165,18 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         val calls = prompts.parsePlan(tier, plan, text, docNames)
         messages += Message(Role.TOOL, "planner: ${plan.trim()}")
 
-        val budget = ((info.nCtx - ANSWER_TOKENS - PROMPT_OVERHEAD_TOKENS) * CHARS_PER_TOKEN).coerceAtLeast(600)
-        val perCall = budget / maxOf(1, calls.size)
+        // Context budget for the answer pass: system prompt, history, question,
+        // tool data, and the answer must fit n_ctx. History goes first, oldest
+        // exchange first, until the data gets at least MIN_DATA_TOKENS.
+        val answerTokens = if (info.nCtx <= 1024) 256 else 384
+        val fixed = answerTokens + PROMPT_OVERHEAD_TOKENS + estimateTokens(text)
+        val minData = if (calls.isEmpty()) 0 else MIN_DATA_TOKENS
+        while (history.isNotEmpty() && info.nCtx - fixed - historyTokens() < minData) {
+            history.removeFirst()
+            history.removeFirst()
+        }
+        val dataTokens = (info.nCtx - fixed - historyTokens()).coerceAtLeast(0)
+        val perCall = dataTokens * CHARS_PER_TOKEN / maxOf(1, calls.size)
         val results = mutableListOf<Pair<String, String>>()
         for (proposed in calls) {
             val call = confirm(proposed, docNames) ?: run {
@@ -188,7 +198,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         val idx = messages.size
         messages += Message(Role.ASSISTANT, "")
         var done: InferenceClient.Event.Done? = null
-        val answer = collect(inference.generate(prompt, null, 0.3f, ANSWER_TOKENS)) { d -> done = d }
+        val answer = collect(inference.generate(prompt, null, 0.3f, answerTokens)) { d -> done = d }
         messages[idx] = Message(Role.ASSISTANT, answer.ifEmpty { "(no answer)" })
         history.addLast("user" to text)
         history.addLast("assistant" to answer)
@@ -196,6 +206,10 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         status = done?.let { "Answered: ${it.tokens} tokens in ${it.elapsedMs} ms" } ?: "Answered"
         // stream progress is shown by rewriting messages[idx] inside collect
     }
+
+    private fun historyTokens() = history.sumOf { estimateTokens(it.second) + 8 }
+
+    private fun estimateTokens(s: String) = s.length / CHARS_PER_TOKEN + 1
 
     private suspend fun collect(
         flow: kotlinx.coroutines.flow.Flow<InferenceClient.Event>,
@@ -260,8 +274,12 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val LARGE_MODEL_BYTES = 700L shl 20
-        private const val ANSWER_TOKENS = 384
-        private const val PROMPT_OVERHEAD_TOKENS = 256
-        private const val CHARS_PER_TOKEN = 3
+        // answer_system.txt plus ChatML framing and <data> labels
+        private const val PROMPT_OVERHEAD_TOKENS = 160
+        private const val MIN_DATA_TOKENS = 250
+
+        // DuckDuckGo result text tokenizes at 2.55 chars/token with the SmolLM2
+        // vocabulary (URLs, punctuation); 2 keeps the estimate on the safe side
+        private const val CHARS_PER_TOKEN = 2
     }
 }
