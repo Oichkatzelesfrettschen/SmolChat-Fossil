@@ -36,5 +36,6 @@ include(":hf-model-hub-api")
 
 // Sandboxed assistant: app, shared Binder interfaces, and the separate
 // network-holding web-search package.
+include(":assistant")
 include(":assistant-ipc")
 include(":websearch")

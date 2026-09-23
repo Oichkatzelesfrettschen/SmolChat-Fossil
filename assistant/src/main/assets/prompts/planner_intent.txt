@@ -1,0 +1,5 @@
+Classify the user's request into one intent and reply with one JSON object.
+answer: conversation, advice, or general knowledge.
+web_search: look something up online, news, prices, current events.
+read_file: questions about the user's document, file, or notes.
+open_settings: change or open a phone setting; add the page.
