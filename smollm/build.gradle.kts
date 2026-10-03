@@ -25,9 +25,13 @@ android {
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        minSdk = 26
+        minSdk = 25
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
+        // -Psmollm.abis=armeabi-v7a restricts the native build to the listed ABIs
+        (project.findProperty("smollm.abis") as String?)?.let { abis ->
+            ndk { abiFilters += abis.split(",") }
+        }
         externalNativeBuild {
             cmake {
                 cppFlags += listOf()
@@ -42,6 +46,16 @@ android {
                 arguments += "-DLLAMA_BUILD_COMMON=ON"
                 arguments += "-DLLAMA_CURL=OFF"
                 arguments += "-DGGML_LLAMAFILE=OFF"
+                // armeabi-v7a FPU baseline: "neon" runs on Cortex-A9 and Krait;
+                // -Psmollm.armv7Fpu=neon-vfpv4 builds a Krait-only library with VFMA
+                val armv7Fpu = (project.findProperty("smollm.armv7Fpu") as String?) ?: "neon"
+                arguments += "-DSMOLLM_ARMV7_FPU=$armv7Fpu"
+                // ninja job pools cap native compile parallelism independently of AGP,
+                // which otherwise runs nproc + 2 jobs: -Psmollm.nativeJobs=N
+                val nativeJobs = (project.findProperty("smollm.nativeJobs") as String?) ?: "4"
+                arguments += "-DCMAKE_JOB_POOLS=compile=$nativeJobs;link=1"
+                arguments += "-DCMAKE_JOB_POOL_COMPILE=compile"
+                arguments += "-DCMAKE_JOB_POOL_LINK=link"
                 // (debugging) uncomment the following line to enable debug builds
                 // and attach hardware-assisted address sanitizer
                 // arguments += "-DCMAKE_BUILD_TYPE=Debug"

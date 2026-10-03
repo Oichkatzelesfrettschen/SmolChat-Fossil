@@ -83,11 +83,9 @@ class SmolLM {
                         Log.d(logTag, "Loading libsmollm_v8.so")
                         System.loadLibrary("smollm_v8")
                     }
-                } else if (Build.SUPPORTED_32_BIT_ABIS[0]?.equals("armeabi-v7a") == true) {
-                    // armv7a (32bit) device
-                    Log.d(logTag, "Loading libsmollm_v7a.so")
-                    System.loadLibrary("smollm_v7a")
                 } else {
+                    // armeabi-v7a builds carry one library whose FPU baseline is set for
+                    // the whole CMake project (SMOLLM_ARMV7_FPU in CMakeLists.txt)
                     Log.d(logTag, "Loading default libsmollm.so")
                     System.loadLibrary("smollm")
                 }

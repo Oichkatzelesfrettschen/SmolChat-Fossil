@@ -1,0 +1,8 @@
+# Planner output for SmolLM2-135M/360M-Instruct: a closed intent enum. The
+# model picks no free-text arguments; the app takes the search query from the
+# user's own message and the document from the user's selection.
+root     ::= nl "{\"intent\": " ( plain | settings ) "}"
+nl       ::= "\n"?
+plain    ::= "\"answer\"" | "\"web_search\"" | "\"read_file\""
+settings ::= "\"open_settings\", \"page\": " page
+page     ::= "\"wifi\"" | "\"bluetooth\"" | "\"display\"" | "\"sound\"" | "\"battery\"" | "\"location\"" | "\"airplane\"" | "\"date\"" | "\"storage\"" | "\"app_info\""

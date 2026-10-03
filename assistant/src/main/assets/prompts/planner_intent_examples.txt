@@ -1,0 +1,12 @@
+hello, how are you?
+{"intent": "answer"}
+search the web for the weather in Oslo
+{"intent": "web_search"}
+what does my document say about the deadline?
+{"intent": "read_file"}
+turn on wifi
+{"intent": "open_settings", "page": "wifi"}
+why is the sky blue?
+{"intent": "answer"}
+open bluetooth settings
+{"intent": "open_settings", "page": "bluetooth"}

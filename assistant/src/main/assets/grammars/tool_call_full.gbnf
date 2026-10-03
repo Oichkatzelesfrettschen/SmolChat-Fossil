@@ -1,0 +1,17 @@
+# Planner output for SmolLM2-1.7B-Instruct: one <tool_call> block in the
+# model-card format, restricted to the allowlisted tools. The app replaces
+#   %CALLS% with the tool alternatives available this turn
+#   %DOCS%  with the granted document names as JSON string literals
+# before handing the grammar to llama_sampler_init_grammar.
+# The model's own first token is a newline (argmax without a grammar);
+# forbidding it pushes greedy decoding onto a different, worse tool choice.
+root     ::= nl "<tool_call>[" nl ( call ( "," nl call ){0,2} nl )? "]</tool_call>"
+nl       ::= "\n"?
+call     ::= %CALLS%
+search   ::= "{\"name\": \"web_search\", \"arguments\": {\"query\": " query "}}"
+read     ::= "{\"name\": \"read_file\", \"arguments\": {\"document\": " doc "}}"
+settings ::= "{\"name\": \"open_settings\", \"arguments\": {\"page\": " page "}}"
+query    ::= "\"" qchar{1,160} "\""
+qchar    ::= [^"\\\x00-\x1F\x7F]
+doc      ::= %DOCS%
+page     ::= "\"wifi\"" | "\"bluetooth\"" | "\"display\"" | "\"sound\"" | "\"battery\"" | "\"location\"" | "\"airplane\"" | "\"date\"" | "\"storage\"" | "\"app_info\""
